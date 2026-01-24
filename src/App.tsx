@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import WaveformScore from "./components/WaveformScore";
 import { mergeRegions, subtractRegion } from "./utils/regionUtils";
+import { exportAudio } from "./utils/exportUtils";
 import "./App.css";
 
 function App() {
@@ -208,6 +209,50 @@ function App() {
 
   // ...
 
+  const handleExport = async () => {
+    if (!audioBuffer) return;
+
+    setIsProcessing(true);
+    // Small timeout to allow UI to show processing state
+    setTimeout(async () => {
+      try {
+        const blob = exportAudio(audioBuffer, deletedRegions);
+
+        // Try Tauri native save first
+        try {
+          // Dynamic import to avoid breaking if standard web browser?
+          // Actually imports are already top-level.
+          const { saveToDisk } = await import("./utils/exportUtils");
+          const saved = await saveToDisk(blob, "edited-audio.wav");
+          if (saved) {
+            alert("导出成功！");
+          }
+        } catch (tauriError) {
+          console.warn(
+            "Tauri export failed, falling back to browser download:",
+            tauriError,
+          );
+          // Fallback to browser download logic
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.style.display = "none";
+          a.href = url;
+          a.download = "edited-audio.wav";
+          document.body.appendChild(a);
+          a.click();
+
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+        }
+      } catch (e) {
+        console.error(e);
+        alert("导出失败");
+      } finally {
+        setIsProcessing(false);
+      }
+    }, 100);
+  };
+
   return (
     <main className="container">
       <header className="app-header">
@@ -224,6 +269,9 @@ function App() {
           </label>
           <button onClick={togglePlayback} disabled={!audioBuffer}>
             {isPlaying ? "暂停" : "播放"}
+          </button>
+          <button onClick={handleExport} disabled={!audioBuffer}>
+            导出
           </button>
           {audioBuffer && (
             <span className="time-info">
