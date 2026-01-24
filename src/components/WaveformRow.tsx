@@ -117,6 +117,9 @@ const WaveformCanvas = memo(
 
 interface ActiveWaveformRowProps extends WaveformRowProps {
   currentTime: number;
+  regions: { start: number; end: number }[];
+  onRegionAdd: (start: number, end: number) => void;
+  onRegionRemove: (start: number, end: number) => void;
 }
 
 const WaveformRow = ({
@@ -127,25 +130,126 @@ const WaveformRow = ({
   onSeek,
   width = 1000,
   height = 120,
+  regions,
+  onRegionAdd,
+  onRegionRemove,
 }: ActiveWaveformRowProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [dragState, setDragState] = React.useState<{
+    isDragging: boolean;
+    startX: number;
+    currentX: number;
+    button: number; // 0: Left, 1: Middle, 2: Right
+  } | null>(null);
 
-  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Prevent default to stop text selection or scrolling
+    e.preventDefault();
     const container = containerRef.current;
     if (!container) return;
 
     const rect = container.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    const percentage = x / width;
-    const seekTime = startTime + percentage * (endTime - startTime);
-    onSeek(seekTime);
+
+    // Left click: Seek
+    if (e.button === 0) {
+      const percentage = x / width;
+      const seekTime = startTime + percentage * (endTime - startTime);
+      onSeek(seekTime);
+      return;
+    }
+
+    // Right (2) or Middle (1) click: Start Drag
+    if (e.button === 2 || e.button === 1) {
+      setDragState({
+        isDragging: true,
+        startX: x,
+        currentX: x,
+        button: e.button,
+      });
+    }
   };
 
-  // Calculate playhead position
-  // We only show it if the current time is within this row
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!dragState?.isDragging) return;
+
+    const container = containerRef.current;
+    if (!container) return;
+
+    // Check if mouse left the container bounds horizontally?
+    // User requirement: "Drag out of row means select to end".
+    // Bounding rect logic handles clamping naturally if we clamp 'x'.
+    const rect = container.getBoundingClientRect();
+    let x = e.clientX - rect.left;
+
+    // Clamp to row bounds
+    x = Math.max(0, Math.min(x, width));
+
+    setDragState((prev) => (prev ? { ...prev, currentX: x } : null));
+  };
+
+  const handleMouseUp = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Handle end of drag
+    if (dragState?.isDragging) {
+      const container = containerRef.current;
+      if (container) {
+        // Calculate final region
+        const startX = Math.min(dragState.startX, dragState.currentX);
+        const endX = Math.max(dragState.startX, dragState.currentX);
+
+        // Convert to time
+        const duration = endTime - startTime;
+        const rStart = startTime + (startX / width) * duration;
+        const rEnd = startTime + (endX / width) * duration;
+
+        // Action based on button
+        if (dragState.button === 2) {
+          // Right click -> Add/Merge
+          onRegionAdd(rStart, rEnd);
+        } else if (dragState.button === 1) {
+          // Middle click -> Remove/Subtract
+          onRegionRemove(rStart, rEnd);
+        }
+      }
+      setDragState(null);
+    }
+  };
+
+  // Handle mouse leave - we want to continue dragging behavior or commit?
+  // User Requirement: "Mouse drag out of current row area means right side ends at row end".
+  // The 'handleMouseMove' clamping logic handles this if the mouse moves *within* the element.
+  // But if the mouse leaves the element entirely, `onMouseMove` might stop firing if not captured.
+  // Simpler approach for now: Use `onMouseLeave` to commit if dragging?
+  // OR better: Attach global mouse up listener?
+  // Let's stick to container-bound events first. If user drags *out* of box, `onMouseLeave` fires.
+  // We can treat `onMouseLeave` as `onMouseUp` with clamped values.
+
+  const handleMouseLeave = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (dragState?.isDragging) {
+      // Commit the drag with clamped values
+      const rect = containerRef.current!.getBoundingClientRect();
+      let x = e.clientX - rect.left;
+      x = Math.max(0, Math.min(x, width));
+
+      const startX = Math.min(dragState.startX, x);
+      const endX = Math.max(dragState.startX, x);
+
+      const duration = endTime - startTime;
+      const rStart = startTime + (startX / width) * duration;
+      const rEnd = startTime + (endX / width) * duration;
+
+      if (dragState.button === 2) {
+        onRegionAdd(rStart, rEnd);
+      } else if (dragState.button === 1) {
+        onRegionRemove(rStart, rEnd);
+      }
+      setDragState(null);
+    }
+  };
+
+  // Calculate playhead
   const showPlayhead = currentTime >= startTime && currentTime <= endTime;
   let playheadLeft = 0;
-
   if (showPlayhead) {
     const duration = endTime - startTime;
     const progress = (currentTime - startTime) / duration;
@@ -156,12 +260,16 @@ const WaveformRow = ({
     <div
       ref={containerRef}
       className="waveform-row-container"
-      onClick={handleClick}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseLeave}
+      onContextMenu={(e) => e.preventDefault()} // Disable native context menu
       style={{
         width: width,
         height: height,
         position: "relative",
-        cursor: "pointer",
+        cursor: "crosshair",
       }}
     >
       <div className="row-time-label" style={{ zIndex: 10 }}>
@@ -176,6 +284,54 @@ const WaveformRow = ({
         height={height}
       />
 
+      {/* Deleted Regions Overlays */}
+      {regions.map((r, idx) => {
+        // Intersect region with this row
+        const rStart = Math.max(r.start, startTime);
+        const rEnd = Math.min(r.end, endTime);
+
+        if (rStart < rEnd) {
+          const left = ((rStart - startTime) / (endTime - startTime)) * width;
+          const w = ((rEnd - rStart) / (endTime - startTime)) * width;
+          return (
+            <div
+              key={idx}
+              style={{
+                position: "absolute",
+                left: left,
+                width: w,
+                top: 0,
+                bottom: 0,
+                backgroundColor: "rgba(128, 128, 128, 0.5)",
+                zIndex: 2,
+                pointerEvents: "none",
+              }}
+            />
+          );
+        }
+        return null;
+      })}
+
+      {/* Active Drag Overlay */}
+      {dragState && dragState.isDragging && (
+        <div
+          style={{
+            position: "absolute",
+            left: Math.min(dragState.startX, dragState.currentX),
+            width: Math.abs(dragState.currentX - dragState.startX),
+            top: 0,
+            bottom: 0,
+            backgroundColor:
+              dragState.button === 2
+                ? "rgba(128, 128, 128, 0.5)"
+                : "rgba(0, 0, 0, 0.2)", // Gray for Delete, lighter for Restore
+            zIndex: 3,
+            pointerEvents: "none",
+            border: "1px dashed white",
+          }}
+        />
+      )}
+
       {showPlayhead && (
         <div
           style={{
@@ -188,7 +344,7 @@ const WaveformRow = ({
             transform: `translateX(${playheadLeft}px)`,
             zIndex: 5,
             pointerEvents: "none",
-            willChange: "transform", // Hint for GPU acceleration
+            willChange: "transform",
           }}
         />
       )}

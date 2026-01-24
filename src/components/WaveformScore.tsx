@@ -5,6 +5,9 @@ interface WaveformScoreProps {
   currentTime: number;
   onSeek: (time: number) => void;
   secondsPerRow?: number;
+  regions: { start: number; end: number }[];
+  onRegionAdd: (start: number, end: number) => void;
+  onRegionRemove: (start: number, end: number) => void;
 }
 
 const WaveformScore = ({
@@ -12,6 +15,9 @@ const WaveformScore = ({
   currentTime,
   onSeek,
   secondsPerRow = 10,
+  regions,
+  onRegionAdd,
+  onRegionRemove,
 }: WaveformScoreProps) => {
   const duration = buffer.duration;
   const rowCount = Math.ceil(duration / secondsPerRow);
@@ -37,6 +43,9 @@ const WaveformScore = ({
         endTime={endTime}
         currentTime={currentTime}
         onSeek={onSeek}
+        regions={regions}
+        onRegionAdd={onRegionAdd}
+        onRegionRemove={onRegionRemove}
       />,
     );
   }

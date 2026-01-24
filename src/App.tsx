@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import WaveformScore from "./components/WaveformScore";
+import { mergeRegions, subtractRegion } from "./utils/regionUtils";
 import "./App.css";
 
 function App() {
@@ -158,6 +159,55 @@ function App() {
     }
   };
 
+  const [deletedRegions, setDeletedRegions] = useState<
+    { start: number; end: number }[]
+  >([]);
+  // ... (refs)
+
+  // Initialize AudioContext & Disable Context Menu
+  useEffect(() => {
+    const ctx = new (
+      window.AudioContext || (window as any).webkitAudioContext
+    )();
+    audioContextRef.current = ctx;
+
+    const preventContextMenu = (e: MouseEvent) => e.preventDefault();
+    document.addEventListener("contextmenu", preventContextMenu);
+
+    return () => {
+      ctx.close();
+      document.removeEventListener("contextmenu", preventContextMenu);
+    };
+  }, []);
+
+  // ... (Region Handlers)
+  const handleRegionAdd = (start: number, end: number) => {
+    setDeletedRegions((prev) => mergeRegions(prev, { start, end }));
+  };
+
+  const handleRegionRemove = (start: number, end: number) => {
+    setDeletedRegions((prev) => subtractRegion(prev, { start, end }));
+    setDeletedRegions((prev) => {
+      /* subtractRegion logic needed here */ return prev.filter(
+        (r) => !(r.start === start && r.end === end),
+      );
+    }); // Placeholder for subtractRegion
+  };
+
+  // ... (existing code: startPlayback, etc.)
+
+  // Reset regions on new file
+  // const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { // Duplicate declaration, removed
+  // ...
+  // const decodedBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer); // Part of original handleFileUpload
+  // setAudioBuffer(decodedBuffer); // Part of original handleFileUpload
+  // setDeletedRegions([]); // Reset regions // Part of original handleFileUpload
+  // setCurrentTime(0); // Part of original handleFileUpload
+  // ...
+  // }; // Part of original handleFileUpload
+
+  // ...
+
   return (
     <main className="container">
       <header className="app-header">
@@ -196,6 +246,9 @@ function App() {
             buffer={audioBuffer}
             currentTime={currentTime}
             onSeek={handleSeek}
+            regions={deletedRegions}
+            onRegionAdd={handleRegionAdd}
+            onRegionRemove={handleRegionRemove}
           />
         ) : (
           <div className="empty-state">请上传音频文件以开始编辑</div>
