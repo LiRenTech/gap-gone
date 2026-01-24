@@ -20,6 +20,15 @@ const WaveformScore = ({
   for (let i = 0; i < rowCount; i++) {
     const startTime = i * secondsPerRow;
     const endTime = Math.min((i + 1) * secondsPerRow, duration);
+
+    // Only pass currentTime if it's relevant to this row to avoid re-rendering
+    // all other rows?
+    // Actually, React will still diff the props.
+    // But since WaveformCanvas is memoized inside WaveformRow,
+    // and the Playhead logic inside WaveformRow is fast (div position),
+    // it should be fine to pass currentTime to all.
+    // The main heavy lifting (canvas drawing) is now skipped.
+
     rows.push(
       <WaveformRow
         key={i}

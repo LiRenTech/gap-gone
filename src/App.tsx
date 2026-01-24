@@ -14,13 +14,25 @@ function App() {
   const animationFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
-    audioContextRef.current = new (
+    const ctx = new (
       window.AudioContext || (window as any).webkitAudioContext
     )();
-    return () => {
-      audioContextRef.current?.close();
+    audioContextRef.current = ctx;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        e.preventDefault();
+        togglePlayback();
+      }
     };
-  }, []);
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      ctx.close();
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isPlaying]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
