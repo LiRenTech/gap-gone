@@ -3,6 +3,7 @@ import WaveformScore from "./components/WaveformScore";
 import { mergeRegions, subtractRegion } from "./utils/regionUtils";
 import { exportAudio } from "./utils/exportUtils";
 import { formatTimeStandard } from "./utils/timeUtils";
+import { detectSilence } from "./utils/audioAnalysis";
 import "./App.css";
 
 function App() {
@@ -254,6 +255,34 @@ function App() {
     }, 100);
   };
 
+  const handleAutoCut = () => {
+    if (!audioBuffer) return;
+    setIsProcessing(true);
+    // Timeout to allow UI render
+    setTimeout(() => {
+      try {
+        const silentRegions = detectSilence(audioBuffer);
+        if (silentRegions.length > 0) {
+          setDeletedRegions((prev) => {
+            let newRegions = [...prev];
+            silentRegions.forEach((r) => {
+              newRegions = mergeRegions(newRegions, r);
+            });
+            return newRegions;
+          });
+          alert(`已自动标记 ${silentRegions.length} 个静音片段`);
+        } else {
+          alert("未检测到符合条件的静音片段");
+        }
+      } catch (e) {
+        console.error(e);
+        alert("分析失败");
+      } finally {
+        setIsProcessing(false);
+      }
+    }, 100);
+  };
+
   return (
     <main className="container">
       {audioBuffer && (
@@ -281,6 +310,9 @@ function App() {
           className={isPlaying ? "btn-playing" : ""}
         >
           {isPlaying ? "暂停" : "播放"}
+        </button>
+        <button onClick={handleAutoCut} disabled={!audioBuffer}>
+          一键去静音
         </button>
         <button onClick={handleExport} disabled={!audioBuffer}>
           导出
