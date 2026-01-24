@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, memo } from "react";
+import { formatTimeCompact } from "../utils/timeUtils";
 
 interface WaveformRowProps {
   buffer: AudioBuffer;
@@ -273,7 +274,7 @@ const WaveformRow = ({
       }}
     >
       <div className="row-time-label" style={{ zIndex: 10 }}>
-        {startTime.toFixed(1)}s
+        {formatTimeCompact(startTime)}
       </div>
 
       <WaveformCanvas

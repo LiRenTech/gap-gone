@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import WaveformScore from "./components/WaveformScore";
 import { mergeRegions, subtractRegion } from "./utils/regionUtils";
 import { exportAudio } from "./utils/exportUtils";
+import { formatTimeStandard } from "./utils/timeUtils";
 import "./App.css";
 
 function App() {
@@ -255,31 +256,36 @@ function App() {
 
   return (
     <main className="container">
-      <header className="app-header">
-        <h1>Audio Full Cut</h1>
-        <div className="controls">
-          <label className="file-input-label">
-            选择音频文件
-            <input
-              type="file"
-              accept="audio/*"
-              onChange={handleFileUpload}
-              style={{ display: "none" }}
-            />
-          </label>
-          <button onClick={togglePlayback} disabled={!audioBuffer}>
-            {isPlaying ? "暂停" : "播放"}
-          </button>
-          <button onClick={handleExport} disabled={!audioBuffer}>
-            导出
-          </button>
-          {audioBuffer && (
-            <span className="time-info">
-              {currentTime.toFixed(2)}s / {audioBuffer.duration.toFixed(2)}s
-            </span>
-          )}
+      {audioBuffer && (
+        <div className="top-left-info">
+          <span className="time-display">
+            {formatTimeStandard(currentTime)} /{" "}
+            {formatTimeStandard(audioBuffer.duration)}
+          </span>
         </div>
-      </header>
+      )}
+
+      <div className="controls">
+        <label className="file-input-label">
+          打开
+          <input
+            type="file"
+            accept="audio/*"
+            onChange={handleFileUpload}
+            style={{ display: "none" }}
+          />
+        </label>
+        <button
+          onClick={togglePlayback}
+          disabled={!audioBuffer}
+          className={isPlaying ? "btn-playing" : ""}
+        >
+          {isPlaying ? "暂停" : "播放"}
+        </button>
+        <button onClick={handleExport} disabled={!audioBuffer}>
+          导出
+        </button>
+      </div>
 
       <div className="waveform-view">
         {isProcessing && (
