@@ -108,3 +108,33 @@ button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
+/* Existing styles... */
+
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(18, 18, 18, 0.8);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+  color: #4caf50;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(76, 175, 80, 0.3);
+  border-radius: 50%;
+  border-top-color: #4caf50;
+  animation: spin 1s ease-in-out infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
