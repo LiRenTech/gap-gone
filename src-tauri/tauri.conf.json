@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "audio-full-cut",
+  "productName": "gap-gone",
   "version": "0.1.0",
-  "identifier": "com.littlefean.audio-full-cut",
+  "identifier": "com.littlefean.gap-gone",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "withGlobalTauri": false,
     "windows": [
       {
-        "title": "Audio Full Cut",
+        "title": "Gap Gone",
         "width": 800,
         "height": 600
       }
