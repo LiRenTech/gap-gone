@@ -47,7 +47,7 @@ const WaveformCanvas = memo(
       ctx.lineTo(width, height / 2);
       ctx.stroke();
 
-      const duration = endTime - startTime;
+      // const duration = endTime - startTime;
       const channelData = buffer.getChannelData(0);
       const startSample = Math.floor(startTime * buffer.sampleRate);
       const endSample = Math.floor(endTime * buffer.sampleRate);
@@ -189,7 +189,7 @@ const WaveformRow = ({
     setDragState((prev) => (prev ? { ...prev, currentX: x } : null));
   };
 
-  const handleMouseUp = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleMouseUp = () => {
     // Handle end of drag
     if (dragState?.isDragging) {
       const container = containerRef.current;
