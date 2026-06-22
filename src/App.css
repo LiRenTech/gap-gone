@@ -169,3 +169,72 @@ button:disabled {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+.help-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(18, 18, 18, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  z-index: 200;
+}
+
+.help-modal-panel {
+  width: min(760px, 100%);
+  max-height: min(82vh, 720px);
+  overflow: auto;
+  background: #1e1e1e;
+  border: 1px solid #333333;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  padding: 1rem 1.1rem;
+}
+
+.help-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.help-modal-title {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #4caf50;
+}
+
+.help-modal-close {
+  padding: 0.3rem 0.75rem;
+}
+
+.help-modal-body h3 {
+  margin: 0.85rem 0 0.35rem;
+  font-size: 0.95rem;
+  color: #e0e0e0;
+}
+
+.help-modal-body ul {
+  margin: 0.2rem 0 0.75rem 1.15rem;
+  padding: 0;
+}
+
+.help-modal-body li {
+  margin: 0.2rem 0;
+  line-height: 1.5;
+}
+
+.help-modal-kbd {
+  display: inline-block;
+  padding: 0.08rem 0.35rem;
+  border-radius: 6px;
+  border: 1px solid #444444;
+  background: #121212;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  font-size: 0.85em;
+  color: #e0e0e0;
+  vertical-align: baseline;
+}

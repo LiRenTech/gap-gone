@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import WaveformScore from "./components/WaveformScore";
+import HelpModal from "./components/HelpModal";
 import { mergeRegions, subtractRegion } from "./utils/regionUtils";
 import { exportAudio } from "./utils/exportUtils";
 import { formatTimeStandard } from "./utils/timeUtils";
@@ -11,6 +12,7 @@ function App() {
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
@@ -121,6 +123,27 @@ function App() {
   // Keyboard listener with correct dependencies
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (helpOpen) {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          setHelpOpen(false);
+        }
+        if (e.code === "Space") {
+          e.preventDefault();
+        }
+        return;
+      }
+
+      if (
+        e.code === "KeyH" ||
+        e.key === "?" ||
+        (e.code === "Slash" && e.shiftKey)
+      ) {
+        e.preventDefault();
+        setHelpOpen(true);
+        return;
+      }
+
       if (e.code === "Space") {
         e.preventDefault();
         togglePlayback();
@@ -129,7 +152,7 @@ function App() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isPlaying, audioBuffer]); // Re-bind when playback state or buffer changes
+  }, [isPlaying, audioBuffer, helpOpen]); // Re-bind when playback state or buffer changes
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -317,6 +340,7 @@ function App() {
         <button onClick={handleExport} disabled={!audioBuffer}>
           导出
         </button>
+        <button onClick={() => setHelpOpen(true)}>帮助</button>
       </div>
 
       <div className="waveform-view">
@@ -340,6 +364,8 @@ function App() {
           <div className="empty-state">请打开音频文件以开始编辑</div>
         )}
       </div>
+
+      <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
     </main>
   );
 }
