@@ -11,6 +11,78 @@ interface WaveformRowProps {
   // currentTime is no longer a prop for the canvas
 }
 
+function drawWaveformSlice({
+  ctx,
+  buffer,
+  startTime,
+  endTime,
+  width,
+  height,
+  fillStyle,
+  baselineStyle,
+  waveformStyle,
+}: {
+  ctx: CanvasRenderingContext2D;
+  buffer: AudioBuffer;
+  startTime: number;
+  endTime: number;
+  width: number;
+  height: number;
+  fillStyle?: string;
+  baselineStyle: string;
+  waveformStyle: string;
+}) {
+  if (fillStyle) {
+    ctx.fillStyle = fillStyle;
+    ctx.fillRect(0, 0, width, height);
+  } else {
+    ctx.clearRect(0, 0, width, height);
+  }
+
+  ctx.strokeStyle = baselineStyle;
+  ctx.beginPath();
+  ctx.moveTo(0, height / 2);
+  ctx.lineTo(width, height / 2);
+  ctx.stroke();
+
+  const channelData = buffer.getChannelData(0);
+  const startSample = Math.floor(startTime * buffer.sampleRate);
+  const endSample = Math.floor(endTime * buffer.sampleRate);
+  const totalSamples = Math.max(1, endSample - startSample);
+  const step = Math.max(1, Math.ceil(totalSamples / Math.max(1, width)));
+  const amp = height / 2;
+
+  ctx.strokeStyle = waveformStyle;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+
+  for (let i = 0; i < width; i++) {
+    let min = 1.0;
+    let max = -1.0;
+
+    const offset = startSample + i * step;
+    if (offset >= channelData.length) break;
+
+    for (let j = 0; j < step; j++) {
+      const idx = offset + j;
+      if (idx >= channelData.length) break;
+      const datum = channelData[idx];
+      if (datum < min) min = datum;
+      if (datum > max) max = datum;
+    }
+
+    if (min > max) {
+      min = 0;
+      max = 0;
+    }
+
+    ctx.moveTo(i, (1 + min) * amp);
+    ctx.lineTo(i, (1 + max) * amp);
+  }
+
+  ctx.stroke();
+}
+
 // Separate component for the heavy waveform canvas
 const WaveformCanvas = memo(
   ({
@@ -36,59 +108,17 @@ const WaveformCanvas = memo(
       canvas.style.height = `${height}px`;
       ctx.scale(dpr, dpr);
 
-      // Draw background
-      ctx.fillStyle = "#1e1e1e";
-      ctx.fillRect(0, 0, width, height);
-
-      // Draw baseline
-      ctx.strokeStyle = "#333333";
-      ctx.beginPath();
-      ctx.moveTo(0, height / 2);
-      ctx.lineTo(width, height / 2);
-      ctx.stroke();
-
-      // const duration = endTime - startTime;
-      const channelData = buffer.getChannelData(0);
-      const startSample = Math.floor(startTime * buffer.sampleRate);
-      const endSample = Math.floor(endTime * buffer.sampleRate);
-
-      // Optimization: Downsample for display width
-      // If we have 10 seconds at 44.1kHz = 441,000 samples.
-      // Trying to draw all of them on 1000px width is wasteful.
-      // Step size calculation:
-      const totalSamples = endSample - startSample;
-      const step = Math.ceil(totalSamples / width);
-      const amp = height / 2;
-
-      ctx.strokeStyle = "#4caf50";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-
-      for (let i = 0; i < width; i++) {
-        let min = 1.0;
-        let max = -1.0;
-
-        const offset = startSample + i * step;
-        if (offset >= channelData.length) break;
-
-        for (let j = 0; j < step; j++) {
-          const idx = offset + j;
-          if (idx >= channelData.length) break;
-          const datum = channelData[idx];
-          if (datum < min) min = datum;
-          if (datum > max) max = datum;
-        }
-
-        // If no data found in range (silence or out of bounds), flatten
-        if (min > max) {
-          min = 0;
-          max = 0;
-        }
-
-        ctx.moveTo(i, (1 + min) * amp);
-        ctx.lineTo(i, (1 + max) * amp);
-      }
-      ctx.stroke();
+      drawWaveformSlice({
+        ctx,
+        buffer,
+        startTime,
+        endTime,
+        width,
+        height,
+        fillStyle: "#1e1e1e",
+        baselineStyle: "#333333",
+        waveformStyle: "#4caf50",
+      });
     }, [buffer, startTime, endTime, width, height]);
 
     return (
@@ -116,11 +146,85 @@ const WaveformCanvas = memo(
   },
 );
 
+const PeelWaveCanvas = memo(
+  ({
+    buffer,
+    startTime,
+    endTime,
+    width,
+    height,
+  }: {
+    buffer: AudioBuffer;
+    startTime: number;
+    endTime: number;
+    width: number;
+    height: number;
+  }) => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+
+    useEffect(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      ctx.scale(dpr, dpr);
+
+      drawWaveformSlice({
+        ctx,
+        buffer,
+        startTime,
+        endTime,
+        width,
+        height,
+        baselineStyle: "rgba(255, 255, 255, 0.14)",
+        waveformStyle: "rgba(133, 237, 151, 0.92)",
+      });
+    }, [buffer, startTime, endTime, width, height]);
+
+    return (
+      <canvas
+        ref={canvasRef}
+        className="region-peel-effect-wave"
+        style={{
+          display: "block",
+          position: "absolute",
+          inset: 0,
+          pointerEvents: "none",
+        }}
+      />
+    );
+  },
+  (prev, next) => {
+    return (
+      prev.startTime === next.startTime &&
+      prev.endTime === next.endTime &&
+      prev.width === next.width &&
+      prev.height === next.height &&
+      prev.buffer === next.buffer
+    );
+  },
+);
+
 interface ActiveWaveformRowProps extends WaveformRowProps {
   currentTime: number;
   regions: { start: number; end: number }[];
   onRegionAdd: (start: number, end: number) => void;
   onRegionRemove: (start: number, end: number) => void;
+}
+
+interface PeelEffect {
+  id: number;
+  left: number;
+  width: number;
+  startTime: number;
+  endTime: number;
 }
 
 const WaveformRow = ({
@@ -142,6 +246,67 @@ const WaveformRow = ({
     currentX: number;
     button: number; // 0: Left, 1: Middle, 2: Right
   } | null>(null);
+  const [peelEffects, setPeelEffects] = React.useState<PeelEffect[]>([]);
+  const peelEffectIdRef = useRef(0);
+  const peelTimeoutsRef = useRef<number[]>([]);
+
+  useEffect(() => {
+    return () => {
+      peelTimeoutsRef.current.forEach((timeoutId) =>
+        window.clearTimeout(timeoutId),
+      );
+    };
+  }, []);
+
+  const triggerPeelEffect = (
+    startX: number,
+    endX: number,
+    effectStartTime: number,
+    effectEndTime: number,
+  ) => {
+    const widthPx = Math.abs(endX - startX);
+    if (widthPx < 6) return;
+
+    const id = peelEffectIdRef.current++;
+    setPeelEffects((prev) => [
+      ...prev,
+      {
+        id,
+        left: Math.min(startX, endX),
+        width: widthPx,
+        startTime: effectStartTime,
+        endTime: effectEndTime,
+      },
+    ]);
+
+    const timeoutId = window.setTimeout(() => {
+      setPeelEffects((prev) => prev.filter((effect) => effect.id !== id));
+      peelTimeoutsRef.current = peelTimeoutsRef.current.filter(
+        (activeId) => activeId !== timeoutId,
+      );
+    }, 700);
+
+    peelTimeoutsRef.current.push(timeoutId);
+  };
+
+  const commitDrag = (finalX: number) => {
+    if (!dragState?.isDragging) return;
+
+    const startX = Math.min(dragState.startX, finalX);
+    const endX = Math.max(dragState.startX, finalX);
+    const duration = endTime - startTime;
+    const rStart = startTime + (startX / width) * duration;
+    const rEnd = startTime + (endX / width) * duration;
+
+    if (dragState.button === 2) {
+      onRegionAdd(rStart, rEnd);
+      triggerPeelEffect(startX, endX, rStart, rEnd);
+    } else if (dragState.button === 1) {
+      onRegionRemove(rStart, rEnd);
+    }
+
+    setDragState(null);
+  };
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     // Prevent default to stop text selection or scrolling
@@ -190,30 +355,8 @@ const WaveformRow = ({
   };
 
   const handleMouseUp = () => {
-    // Handle end of drag
-    if (dragState?.isDragging) {
-      const container = containerRef.current;
-      if (container) {
-        // Calculate final region
-        const startX = Math.min(dragState.startX, dragState.currentX);
-        const endX = Math.max(dragState.startX, dragState.currentX);
-
-        // Convert to time
-        const duration = endTime - startTime;
-        const rStart = startTime + (startX / width) * duration;
-        const rEnd = startTime + (endX / width) * duration;
-
-        // Action based on button
-        if (dragState.button === 2) {
-          // Right click -> Add/Merge
-          onRegionAdd(rStart, rEnd);
-        } else if (dragState.button === 1) {
-          // Middle click -> Remove/Subtract
-          onRegionRemove(rStart, rEnd);
-        }
-      }
-      setDragState(null);
-    }
+    if (!dragState?.isDragging) return;
+    commitDrag(dragState.currentX);
   };
 
   // Handle mouse leave - we want to continue dragging behavior or commit?
@@ -227,24 +370,10 @@ const WaveformRow = ({
 
   const handleMouseLeave = (e: React.MouseEvent<HTMLDivElement>) => {
     if (dragState?.isDragging) {
-      // Commit the drag with clamped values
       const rect = containerRef.current!.getBoundingClientRect();
       let x = e.clientX - rect.left;
       x = Math.max(0, Math.min(x, width));
-
-      const startX = Math.min(dragState.startX, x);
-      const endX = Math.max(dragState.startX, x);
-
-      const duration = endTime - startTime;
-      const rStart = startTime + (startX / width) * duration;
-      const rEnd = startTime + (endX / width) * duration;
-
-      if (dragState.button === 2) {
-        onRegionAdd(rStart, rEnd);
-      } else if (dragState.button === 1) {
-        onRegionRemove(rStart, rEnd);
-      }
-      setDragState(null);
+      commitDrag(x);
     }
   };
 
@@ -256,6 +385,42 @@ const WaveformRow = ({
     const progress = (currentTime - startTime) / duration;
     playheadLeft = progress * width;
   }
+
+  const activeDragLeft = dragState
+    ? Math.min(dragState.startX, dragState.currentX)
+    : 0;
+  const activeDragWidth = dragState
+    ? Math.abs(dragState.currentX - dragState.startX)
+    : 0;
+
+  const restorePreviewSegments =
+    dragState?.isDragging && dragState.button === 1
+      ? regions.flatMap((region, idx) => {
+          const rowRegionStart = Math.max(region.start, startTime);
+          const rowRegionEnd = Math.min(region.end, endTime);
+          if (rowRegionStart >= rowRegionEnd) return [];
+
+          const dragStartTime =
+            startTime + (activeDragLeft / width) * (endTime - startTime);
+          const dragEndTime =
+            startTime +
+            ((activeDragLeft + activeDragWidth) / width) * (endTime - startTime);
+
+          const overlapStart = Math.max(rowRegionStart, dragStartTime);
+          const overlapEnd = Math.min(rowRegionEnd, dragEndTime);
+          if (overlapStart >= overlapEnd) return [];
+
+          return [
+            {
+              key: `${idx}-${overlapStart}-${overlapEnd}`,
+              left:
+                ((overlapStart - startTime) / (endTime - startTime)) * width,
+              width:
+                ((overlapEnd - overlapStart) / (endTime - startTime)) * width,
+            },
+          ];
+        })
+      : [];
 
   return (
     <div
@@ -273,82 +438,130 @@ const WaveformRow = ({
         cursor: "crosshair",
       }}
     >
-      <div className="row-time-label" style={{ zIndex: 10 }}>
-        {formatTimeCompact(startTime)}
+      <div className="waveform-row-clip">
+        <div className="row-time-label" style={{ zIndex: 10 }}>
+          {formatTimeCompact(startTime)}
+        </div>
+
+        <WaveformCanvas
+          buffer={buffer}
+          startTime={startTime}
+          endTime={endTime}
+          width={width}
+          height={height}
+        />
+
+        {/* Deleted Regions Overlays */}
+        {regions.map((r, idx) => {
+          // Intersect region with this row
+          const rStart = Math.max(r.start, startTime);
+          const rEnd = Math.min(r.end, endTime);
+
+          if (rStart < rEnd) {
+            const left =
+              ((rStart - startTime) / (endTime - startTime)) * width;
+            const w = ((rEnd - rStart) / (endTime - startTime)) * width;
+            return (
+              <div
+                key={idx}
+                style={{
+                  position: "absolute",
+                  left: left,
+                  width: w,
+                  top: 0,
+                  bottom: 0,
+                  backgroundColor: "rgba(18, 18, 18, 0.74)",
+                  zIndex: 2,
+                  pointerEvents: "none",
+                }}
+              />
+            );
+          }
+          return null;
+        })}
+
+        {restorePreviewSegments.map((segment) => (
+          <div
+            key={segment.key}
+            style={{
+              position: "absolute",
+              left: segment.left,
+              width: segment.width,
+              top: 0,
+              bottom: 0,
+              background:
+                "linear-gradient(180deg, rgba(76, 175, 80, 0.46) 0%, rgba(76, 175, 80, 0.24) 100%)",
+              boxShadow:
+                "inset 0 0 0 1px rgba(114, 255, 140, 0.42), inset 0 0 18px rgba(76, 175, 80, 0.18)",
+              zIndex: 3,
+              pointerEvents: "none",
+            }}
+          />
+        ))}
+
+        {/* Active Drag Overlay */}
+        {dragState && dragState.isDragging && (
+          <div
+            style={{
+              position: "absolute",
+              left: activeDragLeft,
+              width: activeDragWidth,
+              top: 0,
+              bottom: 0,
+              backgroundColor:
+                dragState.button === 2
+                  ? "rgba(18, 18, 18, 0.68)"
+                  : "rgba(255, 255, 255, 0.2)",
+              zIndex: 4,
+              pointerEvents: "none",
+              border:
+                dragState.button === 2
+                  ? "1px dashed rgba(255, 255, 255, 0.18)"
+                  : "1px dashed rgba(255, 255, 255, 0.42)",
+            }}
+          />
+        )}
+
+        {showPlayhead && (
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              bottom: 0,
+              left: 0,
+              width: "2px",
+              backgroundColor: "#ff5252",
+              transform: `translateX(${playheadLeft}px)`,
+              zIndex: 5,
+              pointerEvents: "none",
+              willChange: "transform",
+            }}
+          />
+        )}
       </div>
 
-      <WaveformCanvas
-        buffer={buffer}
-        startTime={startTime}
-        endTime={endTime}
-        width={width}
-        height={height}
-      />
-
-      {/* Deleted Regions Overlays */}
-      {regions.map((r, idx) => {
-        // Intersect region with this row
-        const rStart = Math.max(r.start, startTime);
-        const rEnd = Math.min(r.end, endTime);
-
-        if (rStart < rEnd) {
-          const left = ((rStart - startTime) / (endTime - startTime)) * width;
-          const w = ((rEnd - rStart) / (endTime - startTime)) * width;
-          return (
-            <div
-              key={idx}
-              style={{
-                position: "absolute",
-                left: left,
-                width: w,
-                top: 0,
-                bottom: 0,
-                backgroundColor: "rgba(128, 128, 128, 0.5)",
-                zIndex: 2,
-                pointerEvents: "none",
-              }}
+      {peelEffects.map((effect) => (
+        <div
+          key={effect.id}
+          className="region-peel-effect"
+          style={{
+            left: effect.left,
+            width: effect.width,
+          }}
+        >
+          <div className="region-peel-effect-skin">
+            <PeelWaveCanvas
+              buffer={buffer}
+              startTime={effect.startTime}
+              endTime={effect.endTime}
+              width={effect.width}
+              height={height}
             />
-          );
-        }
-        return null;
-      })}
-
-      {/* Active Drag Overlay */}
-      {dragState && dragState.isDragging && (
-        <div
-          style={{
-            position: "absolute",
-            left: Math.min(dragState.startX, dragState.currentX),
-            width: Math.abs(dragState.currentX - dragState.startX),
-            top: 0,
-            bottom: 0,
-            backgroundColor:
-              dragState.button === 2
-                ? "rgba(128, 128, 128, 0.5)"
-                : "rgba(0, 0, 0, 0.2)", // Gray for Delete, lighter for Restore
-            zIndex: 3,
-            pointerEvents: "none",
-            border: "1px dashed white",
-          }}
-        />
-      )}
-
-      {showPlayhead && (
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            bottom: 0,
-            left: 0,
-            width: "2px",
-            backgroundColor: "#ff5252",
-            transform: `translateX(${playheadLeft}px)`,
-            zIndex: 5,
-            pointerEvents: "none",
-            willChange: "transform",
-          }}
-        />
-      )}
+            <div className="region-peel-effect-gloss" />
+          </div>
+          <div className="region-peel-effect-shadow" />
+        </div>
+      ))}
     </div>
   );
 };
