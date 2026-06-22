@@ -337,7 +337,7 @@ function App() {
             onRegionRemove={handleRegionRemove}
           />
         ) : (
-          <div className="empty-state">请上传音频文件以开始编辑</div>
+          <div className="empty-state">请打开音频文件以开始编辑</div>
         )}
       </div>
     </main>
